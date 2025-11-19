@@ -67,10 +67,26 @@ VolLiqScore = 0.5 × z_vol + 0.5 × z_liq_stress
 ```
 .
 ├── 因子3完整分析报告.md          # 完整的中文分析报告
+├── README.md                     # 项目说明
+├── .gitignore                    # Git忽略文件配置
 ├── ip.txt                        # 服务器IP地址
 ├── mishi/                        # SSH密钥（不提交到git）
-├── README.md                     # 项目说明
-└── .gitignore                    # Git忽略文件配置
+├── scripts/                      # 分析脚本
+│   ├── stage0_setup_data_links.py           # 阶段0: 数据复用与样本对齐
+│   ├── stage1_add_vol_liq_factors.py        # 阶段1: 因子构造（长周期）
+│   ├── stage1b_add_short_timeframes.py      # 阶段1b: 因子构造（短周期）
+│   ├── stage2_time_structure_analysis.py    # 阶段2: 时间结构分析
+│   ├── stage3_predictive_power_analysis.py  # 阶段3: 预测能力分析
+│   ├── stage4_robustness_analysis.py        # 阶段4: 稳健性分析
+│   ├── run_all_stages.py                    # 运行所有阶段的主脚本
+│   └── generate_final_report.py             # 生成最终报告
+└── src/                          # 源代码模块
+    ├── __init__.py
+    └── joint_factors/            # 因子计算模块
+        ├── __init__.py
+        ├── vol_liq_factor.py     # 因子3计算核心模块
+        ├── factor_registry.py    # 因子注册表
+        └── joint_signals.py      # 联合信号生成
 ```
 
 ## 服务器端项目结构
@@ -91,6 +107,61 @@ manip-ofi-joint-analysis/
 └── scripts/                     # 执行脚本
 ```
 
+## 核心代码说明
+
+### 因子计算模块 (`src/joint_factors/vol_liq_factor.py`)
+
+核心函数：`add_vol_liq_factors(df, lookback=50)`
+
+**输入**:
+- `df`: 包含OHLCV数据的DataFrame
+- `lookback`: rolling窗口大小（默认50）
+
+**输出**:
+- 增强后的DataFrame，包含以下新列：
+  - `z_vol`: Volume Surprise
+  - `TR`: True Range
+  - `ATR`: Average True Range
+  - `liq_stress`: Liquidity Stress (range/ATR)
+  - `z_liq_stress`: Z-score标准化的流动性压力
+  - `VolLiqScore`: 综合因子
+
+### 分析脚本
+
+#### 阶段0: `stage0_setup_data_links.py`
+- 扫描旧项目数据
+- 创建符号链接
+- 生成数据可用性摘要
+
+#### 阶段1: `stage1_add_vol_liq_factors.py`
+- 处理1H, 2H, 4H, 8H周期数据
+- 计算因子3
+- 保存到`data/intermediate/`
+
+#### 阶段1b: `stage1b_add_short_timeframes.py`
+- 处理5min, 15min, 30min周期数据
+- 计算因子3
+- 保存到`data/intermediate/`
+
+#### 阶段2: `stage2_time_structure_analysis.py`
+- 计算自相关性（ACF）
+- 计算半衰期和均值回归速度
+- 统计高值事件频率
+
+#### 阶段3: `stage3_predictive_power_analysis.py`
+- 计算与未来波动率的相关性
+- 分析尾部事件预测能力
+- 多窗口前瞻分析
+
+#### 阶段4: `stage4_robustness_analysis.py`
+- 品种×周期交叉统计
+- 变异系数分析
+- 稳健性评估
+
+#### 主脚本: `run_all_stages.py`
+- 一键运行阶段2-4的所有分析
+- 自动生成所有结果文件
+
 ## 使用方法
 
 ### 环境要求
@@ -99,7 +170,19 @@ manip-ofi-joint-analysis/
 - pandas
 - numpy
 
-### 运行分析
+### 本地使用
+
+```bash
+# 克隆仓库
+git clone https://github.com/chensirou3/volume-surprise-and-liquidity-stress.git
+cd volume-surprise-and-liquidity-stress
+
+# 查看代码
+# scripts/ - 所有分析脚本
+# src/joint_factors/ - 因子计算模块
+```
+
+### 服务器端运行
 
 所有分析在远程服务器上运行：
 
@@ -112,6 +195,11 @@ cd manip-ofi-joint-analysis
 
 # 运行所有阶段分析
 python3 scripts/run_all_stages.py
+
+# 或者单独运行某个阶段
+python3 scripts/stage2_time_structure_analysis.py
+python3 scripts/stage3_predictive_power_analysis.py
+python3 scripts/stage4_robustness_analysis.py
 ```
 
 ## 应用场景
